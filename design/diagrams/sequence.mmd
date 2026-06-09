@@ -1,0 +1,29 @@
+%% Sequence diagram for contacting a professional on InvestAqary
+sequenceDiagram
+    participant Client
+    participant Browser
+    participant Server
+    participant MessageController
+    participant Lead
+    participant Conversation
+    participant EmailService
+
+    Client->>Browser: Open /contact/{pro}
+    Browser->>Server: GET /contact/{pro}
+    Server->>MessageController: showContactForm(pro)
+    MessageController->>Lead: load professional info
+    Lead-->>MessageController: professional profile
+    MessageController-->>Server: render contact form
+    Server-->>Browser: display form
+    Client->>Browser: Submit contact form
+    Browser->>Server: POST /contact/{pro}
+    Server->>MessageController: sendContactForm(data)
+    MessageController->>Lead: create lead record
+    Lead-->>MessageController: lead saved
+    MessageController->>Conversation: create conversation
+    Conversation-->>MessageController: conversation ready
+    MessageController->>EmailService: notify professional
+    EmailService-->>MessageController: notification sent
+    MessageController-->>Server: return success response
+    Server-->>Browser: show confirmation message
+    Browser-->>Client: Contact request sent

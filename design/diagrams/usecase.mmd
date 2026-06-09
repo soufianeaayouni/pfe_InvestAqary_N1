@@ -1,0 +1,56 @@
+%% Use case diagram for InvestAqary
+usecaseDiagram
+actor Visitor as V
+actor Client as C
+actor Professional as P
+actor Maalem as M
+actor Admin as A
+
+V --> (Browse Professionals)
+V --> (View Project Details)
+V --> (Search & Filter)
+V --> (View Simulator)
+V --> (Sign Up / Login)
+
+C --> (Create Account)
+C --> (Create Simulation)
+C --> (Save Simulation Result)
+C --> (Contact Maalem)
+C --> (Contact Enterprise)
+C --> (Write Review)
+C --> (Receive Notifications)
+C --> (View Favorites)
+C --> (Track Leads)
+
+P --> (Register as Professional)
+P --> (Manage Company Profile)
+P --> (Upload Portfolio)
+P --> (Respond to Leads)
+P --> (Manage Projects)
+P --> (View Profile Analytics)
+P --> (Send Quotes)
+P --> (Receive Reviews)
+
+M --> (Register as Maalem)
+M --> (Create Profile)
+M --> (Add Experience)
+M --> (Respond to Client Requests)
+M --> (View Statistics)
+M --> (Get Verified)
+
+A --> (Manage Users)
+A --> (Manage Professionals)
+A --> (Approve Verifications)
+A --> (Moderate Reviews)
+A --> (View Analytics)
+A --> (Manage Categories)
+A --> (Send Notifications)
+
+(Contact Maalem) <-- (Browse Professionals)
+(Contact Enterprise) <-- (Browse Professionals)
+(Respond to Leads) <-- (Contact Maalem)
+(Respond to Leads) <-- (Contact Enterprise)
+(Create Simulation) <-- (View Simulator)
+(Send Quotes) <-- (Respond to Leads)
+(Write Review) <-- (Respond to Leads)
+(Get Verified) <-- (Approve Verifications)

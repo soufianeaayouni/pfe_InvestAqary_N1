@@ -61,17 +61,21 @@ class DatabaseSeeder extends Seeder
             $variants = ['Maroc', 'Expert', 'Solutions'];
             
             foreach ($variants as $vIndex => $variant) {
-                $pro = User::create([
-                    'name' => "Expert $cat $variant " . ($index + 1),
-                    'first_name' => 'Expert',
-                    'last_name' => "$cat $variant",
-                    'email' => str_replace([' ', '/', '\'', '.'], '', strtolower($cat)) . "{$index}_{$vIndex}@pro.ma",
-                    'password' => Hash::make('password123'),
-                    'role' => 'pro',
-                    'phone' => '06' . str_pad($index . $vIndex, 8, '0', STR_PAD_LEFT),
-                    'city' => $vIndex == 0 ? 'Casablanca' : ($vIndex == 1 ? 'Rabat' : 'Marrakech'),
-                ]);
+                    $localPart = Str::of($cat)
+                        ->ascii()
+                        ->lower()
+                        ->replaceMatches('/[^a-z0-9]/', '');
 
+                    $pro = User::create([
+                        'name' => "Expert $cat $variant " . ($index + 1),
+                        'first_name' => 'Expert',
+                        'last_name' => "$cat $variant",
+                        'email' => "{$localPart}{$index}_{$vIndex}@pro.ma",
+                        'password' => Hash::make('password123'),
+                        'role' => 'pro',
+                        'phone' => '06' . str_pad($index . $vIndex, 8, '0', STR_PAD_LEFT),
+                        'city' => $vIndex == 0 ? 'Casablanca' : ($vIndex == 1 ? 'Rabat' : 'Marrakech'),
+                    ]);
                 ProfessionalProfile::create([
                     'user_id' => $pro->id,
                     'company_name' => "Atlas $cat $variant",
@@ -195,6 +199,9 @@ class DatabaseSeeder extends Seeder
             }
         }
 
+        $this->call(BlogSeeder::class);
+
         echo "Seeders completed successfully! PostgreSQL is now populated with real data for ALL Entreprises, Maalems, and Matières.\n";
     }
 }
+

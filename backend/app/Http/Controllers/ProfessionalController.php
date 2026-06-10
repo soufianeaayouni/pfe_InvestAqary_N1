@@ -14,28 +14,41 @@ class ProfessionalController extends Controller
     /**
      * Get all professionals (Companies and Maalems)
      */
-    public function index(Request $request)
+    public function entreprises(Request $request)
     {
-        $query = User::where('role', 'pro')->where('status', 'active')->with('professionalProfile');
+        return $this->listByType($request, 'entreprise');
+    }
 
-        // Filter by type (entreprise or maalem)
-        if ($request->has('type')) {
-            $type = $request->type;
-            $query->whereHas('professionalProfile', function ($q) use ($type) {
+    public function maalems(Request $request)
+    {
+        return $this->listByType($request, 'maalem');
+    }
+
+    public function fournisseurs(Request $request)
+    {
+        return $this->listByType($request, 'fournisseur');
+    }
+
+    /**
+     * Shared listing logic filtered by type
+     */
+    private function listByType(Request $request, string $type)
+    {
+        $query = User::where('role', 'pro')
+            ->where('status', 'active')
+            ->with('professionalProfile')
+            ->whereHas('professionalProfile', function ($q) use ($type) {
                 $q->where('type', $type);
             });
-        }
 
-        // Filter by category if provided - Flexible matching
-        if ($request->has('category')) {
+        if ($request->filled('category')) {
             $category = $request->category;
             $query->whereHas('professionalProfile', function ($q) use ($category) {
                 $q->where('category', 'ilike', "%$category%");
             });
         }
 
-        // Search by name or company name
-        if ($request->has('search')) {
+        if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'ilike', "%$search%")
@@ -45,40 +58,35 @@ class ProfessionalController extends Controller
             });
         }
 
-        $professionals = $query->latest()->get();
+        $professionals = $query->latest()->paginate(12);
 
-        return response()->json([
-            'success' => true,
-            'data' => $professionals
-        ]);
+        return view('pages.professionals-list', compact('professionals', 'type'));
     }
 
-    /**
-     * Get a specific professional by slug (using name for now as slug)
-     */
     public function show($id)
     {
         $professional = User::where('role', 'pro')
             ->where('status', 'active')
-            ->with('professionalProfile')
+            ->with(['professionalProfile', 'projects' => function ($query) {
+                $query->where('status', 'online')->latest();
+            }])
             ->find($id);
 
         if (!$professional) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Professional not found'
-            ], 404);
+            return redirect('/')->withErrors('Professionnel introuvable.');
         }
 
-        $viewerId = auth()->id();
-        if ($viewerId !== (int) $professional->id) {
-            $this->recordProfileView($professional);
+        // Record profile view (non-blocking)
+        try {
+            $viewerId = auth()->id();
+            if ($viewerId !== (int) $professional->id) {
+                $this->recordProfileView($professional);
+            }
+        } catch (\Exception $e) {
+            // Silently fail — don't block the page
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $professional
-        ]);
+        return view('pages.professional-detail', compact('professional'));
     }
 
     /**

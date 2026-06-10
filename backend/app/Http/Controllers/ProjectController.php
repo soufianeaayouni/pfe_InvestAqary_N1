@@ -30,29 +30,17 @@ class ProjectController extends Controller
 
         $projects = $query->where('status', 'online')->latest()->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $projects
-        ]);
+        return view('pages.projects.list', compact('projects'));
     }
 
     public function show($slug)
     {
         $project = Project::with('user.professionalProfile')
             ->where('slug', $slug)
-            ->first();
+            ->where('status', 'online')
+            ->firstOrFail();
 
-        if (!$project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Project not found'
-            ], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $project
-        ]);
+        return view('pages.projects.show', compact('project'));
     }
 
     public function store(Request $request)
@@ -71,10 +59,12 @@ class ProjectController extends Controller
             $imagePath = asset('storage/' . $path);
         }
 
+        $slug = Str::slug($request->title) . '-' . uniqid();
+
         $project = Project::create([
             'user_id' => auth()->id(),
             'title' => $request->title,
-            'slug' => Str::slug($request->title) . '-' . time(),
+            'slug' => $slug,
             'description' => $request->description,
             'category' => $request->category,
             'location' => $request->city,
@@ -82,10 +72,7 @@ class ProjectController extends Controller
             'status' => 'online',
         ]);
 
-        return response()->json([
-            'success' => true,
-            'data' => $project
-        ], 201);
+        return redirect()->route('dashboard.pro')->with('success', 'Projet ajouté avec succès !');
     }
 
     public function update(Request $request, $id)
@@ -93,7 +80,7 @@ class ProjectController extends Controller
         $project = Project::findOrFail($id);
 
         if ($project->user_id !== auth()->id()) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            return back()->with('error', 'Unauthorized');
         }
 
         $request->validate([
@@ -118,10 +105,7 @@ class ProjectController extends Controller
 
         $project->update($data);
 
-        return response()->json([
-            'success' => true,
-            'data' => $project
-        ]);
+        return back()->with('success', 'Projet mis à jour avec succès.');
     }
 
     public function destroy($id)
@@ -129,14 +113,66 @@ class ProjectController extends Controller
         $project = Project::findOrFail($id);
 
         if ($project->user_id !== auth()->id()) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+            return back()->with('error', 'Unauthorized');
         }
 
         $project->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Project deleted successfully'
+        return back()->with('success', 'Projet supprimé avec succès.');
+    }
+
+    /**
+     * Store a project from the web dashboard (Blade form submission).
+     */
+    public function storeWeb(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'category' => 'nullable|string',
+            'city' => 'nullable|string',
+            'image_file' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
+
+        $imagePath = null;
+        if ($request->hasFile('image_file')) {
+            $path = $request->file('image_file')->store('projects', 'public');
+            $imagePath = asset('storage/' . $path);
+        }
+
+        $slug = Str::slug($request->title) . '-' . uniqid();
+
+        Project::create([
+            'user_id' => auth()->id(),
+            'title' => $request->title,
+            'slug' => $slug,
+            'description' => $request->description,
+            'category' => $request->category,
+            'location' => $request->city,
+            'image' => $imagePath,
+            'status' => 'online',
+        ]);
+
+        return redirect()->route('dashboard.pro')->with('success', 'Projet ajouté avec succès !');
+    }
+
+    /**
+     * Delete a project from the web dashboard.
+     */
+    public function destroyWeb($id)
+    {
+        \Illuminate\Support\Facades\Log::info("Attempting to delete project ID: {$id} by user: " . auth()->id());
+
+        $project = Project::findOrFail($id);
+
+        if ((int)$project->user_id !== (int)auth()->id()) {
+            \Illuminate\Support\Facades\Log::warning("User " . auth()->id() . " tried to delete project {$id} owned by {$project->user_id}");
+            abort(403, 'Unauthorized action.');
+        }
+
+        $deleted = $project->delete();
+        \Illuminate\Support\Facades\Log::info("Project {$id} deletion result: " . ($deleted ? 'success' : 'failed'));
+
+        return back()->with('success', 'Projet supprimé avec succès.');
     }
 }

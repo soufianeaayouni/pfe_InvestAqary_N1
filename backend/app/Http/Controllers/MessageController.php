@@ -58,8 +58,97 @@ class MessageController extends Controller
         ]);
     }
 
+    public function showContactForm(User $pro)
+    {
+        if ($pro->role !== 'pro') {
+            abort(404);
+        }
+
+        return view('messages.contact', ['professional' => $pro]);
+    }
+
+    public function sendContactForm(Request $request, User $pro)
+    {
+        if ($pro->role !== 'pro') {
+            abort(404);
+        }
+
+        $request->validate([
+            'body' => 'required|string|max:2000',
+        ]);
+
+        $senderId = auth()->id();
+        $receiverId = $pro->id;
+
+        if ($senderId === $receiverId) {
+            return back()->withErrors(['body' => 'Vous ne pouvez pas vous envoyer un message à vous-même.']);
+        }
+
+        $conversation = Conversation::where(function($q) use ($senderId, $receiverId) {
+            $q->where('sender_id', $senderId)->where('receiver_id', $receiverId);
+        })->orWhere(function($q) use ($senderId, $receiverId) {
+            $q->where('sender_id', $receiverId)->where('receiver_id', $senderId);
+        })->first();
+
+        if (!$conversation) {
+            $conversation = Conversation::create([
+                'sender_id' => $senderId,
+                'receiver_id' => $receiverId,
+                'last_message_at' => now()
+            ]);
+        } else {
+            $conversation->update(['last_message_at' => now()]);
+        }
+
+        Message::create([
+            'conversation_id' => $conversation->id,
+            'user_id' => $senderId,
+            'body' => $request->body,
+        ]);
+
+        return back()->with('success', 'Message envoyé avec succès.');
+    }
+
+    public function showConversation(Request $request, Conversation $conversation)
+    {
+        $userId = auth()->id();
+        if ($conversation->sender_id !== $userId && $conversation->receiver_id !== $userId) {
+            abort(403);
+        }
+
+        $conversation->load(['sender:id,name', 'receiver:id,name', 'messages.user:id,name']);
+
+        Message::where('conversation_id', $conversation->id)
+            ->where('user_id', '!=', $userId)
+            ->update(['read' => true]);
+
+        return view('messages.conversation', ['conversation' => $conversation]);
+    }
+
+    public function replyConversation(Request $request, Conversation $conversation)
+    {
+        $userId = auth()->id();
+        if ($conversation->sender_id !== $userId && $conversation->receiver_id !== $userId) {
+            abort(403);
+        }
+
+        $request->validate([
+            'body' => 'required|string|max:2000',
+        ]);
+
+        Message::create([
+            'conversation_id' => $conversation->id,
+            'user_id' => $userId,
+            'body' => $request->body,
+        ]);
+
+        $conversation->update(['last_message_at' => now()]);
+
+        return back()->with('success', 'Réponse envoyée.');
+    }
+
     /**
-     * Send a message
+     * Send a message via API
      */
     public function sendMessage(Request $request)
     {

@@ -14,10 +14,7 @@ class SimulationController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        return response()->json([
-            'success' => true,
-            'simulations' => $simulations,
-        ]);
+        return view('dashboard.client-simulations', compact('simulations'));
     }
 
     public function store(Request $request)
@@ -31,10 +28,7 @@ class SimulationController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return back()->withErrors($validator)->withInput();
         }
 
         $user = $request->user();
@@ -48,11 +42,7 @@ class SimulationController extends Controller
             'raw_data' => $request->raw_data,
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Simulation saved successfully.',
-            'simulation' => $simulation,
-        ], 201);
+        return redirect('/mes-simulations')->with('success', 'Simulation enregistrée.');
     }
 
     public function show(Request $request, $id)
@@ -61,16 +51,10 @@ class SimulationController extends Controller
 
         if ($simulation->user_id !== null
             && (!$request->user() || $request->user()->id != $simulation->user_id)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized access to this simulation.',
-            ], 403);
+            abort(403, 'Unauthorized access to this simulation.');
         }
 
-        return response()->json([
-            'success' => true,
-            'simulation' => $simulation,
-        ]);
+        return view('dashboard.client-simulation-detail', compact('simulation'));
     }
 
     public function update(Request $request, $id)
@@ -78,10 +62,7 @@ class SimulationController extends Controller
         $simulation = Simulation::findOrFail($id);
 
         if (!$request->user() || $request->user()->id != $simulation->user_id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized to update this simulation.',
-            ], 403);
+            return back()->with('error', 'Unauthorized to update this simulation.');
         }
 
         $payload = array_merge(
@@ -98,10 +79,7 @@ class SimulationController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return back()->withErrors($validator)->withInput();
         }
 
         $simulation->update($request->only([
@@ -112,11 +90,7 @@ class SimulationController extends Controller
             'raw_data',
         ]));
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Simulation updated successfully.',
-            'simulation' => $simulation->fresh(),
-        ]);
+        return back()->with('success', 'Simulation mise à jour.');
     }
 
     public function destroy(Request $request, $id)
@@ -124,17 +98,11 @@ class SimulationController extends Controller
         $simulation = Simulation::findOrFail($id);
 
         if (!$request->user() || $request->user()->id != $simulation->user_id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized to delete this simulation.',
-            ], 403);
+            return back()->with('error', 'Unauthorized to delete this simulation.');
         }
 
         $simulation->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Simulation deleted successfully.',
-        ]);
+        return back()->with('success', 'Simulation supprimée.');
     }
 }

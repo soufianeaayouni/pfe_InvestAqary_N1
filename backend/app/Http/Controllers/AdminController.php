@@ -15,23 +15,7 @@ class AdminController extends Controller
      */
     public function stats()
     {
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'total_users' => User::count(),
-                'total_pros' => User::where('role', 'pro')->count(),
-                'total_clients' => User::where('role', 'client')->count(),
-                'total_projects' => Project::count(),
-                'total_products' => Product::count(),
-                'total_simulations' => Simulation::count(),
-                'unverified_pros_count' => User::where('role', 'pro')
-                    ->whereHas('professionalProfile', function($query) {
-                        $query->where('is_verified', false);
-                    })->count(),
-                'pending_users_count' => User::where('status', 'pending')->count(),
-                'recent_activities' => $this->getRecentActivities(),
-            ]
-        ]);
+        return redirect()->route('dashboard.admin')->with('info', 'Stats endpoint removed.');
     }
 
     private function getRecentActivities()
@@ -78,17 +62,13 @@ class AdminController extends Controller
         $user = User::findOrFail($id);
         
         if ($user->id === auth()->id()) {
-            return response()->json(['success' => false, 'message' => 'Cannot change your own status'], 400);
+            return redirect()->back()->with('error', 'Vous ne pouvez pas changer votre propre statut.');
         }
 
         $user->status = $request->status;
         $user->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User status updated successfully',
-            'data' => $user
-        ]);
+        return redirect()->back()->with('success', 'Statut du compte mis à jour avec succès.');
     }
 
     /**
@@ -96,11 +76,7 @@ class AdminController extends Controller
      */
     public function products()
     {
-        $products = Product::with('user.professionalProfile')->latest()->get();
-        return response()->json([
-            'success' => true,
-            'data' => $products
-        ]);
+        return redirect()->route('dashboard.admin')->with('info', 'Products endpoint removed.');
     }
 
     /**
@@ -111,11 +87,7 @@ class AdminController extends Controller
         $product = Product::findOrFail($id);
         $product->status = $product->status === 'online' ? 'offline' : 'online';
         $product->save();
-        
-        return response()->json([
-            'success' => true,
-            'data' => $product
-        ]);
+        return redirect()->back()->with('success', 'Product status mis à jour.');
     }
 
     /**
@@ -125,7 +97,7 @@ class AdminController extends Controller
     {
         $product = Product::findOrFail($id);
         $product->delete();
-        return response()->json(['success' => true]);
+        return redirect()->back()->with('success', 'Produit supprimé.');
     }
 
     /**
@@ -133,11 +105,7 @@ class AdminController extends Controller
      */
     public function users(Request $request)
     {
-        $users = User::with('professionalProfile')->latest()->get();
-        return response()->json([
-            'success' => true,
-            'data' => $users
-        ]);
+        return redirect()->route('dashboard.admin')->with('info', 'Users endpoint removed.');
     }
 
     /**
@@ -153,7 +121,7 @@ class AdminController extends Controller
         }
 
         $user->delete();
-        return response()->json(['success' => true]);
+        return redirect()->back()->with('success', 'Utilisateur supprimé.');
     }
 
     /**
@@ -169,11 +137,8 @@ class AdminController extends Controller
 
         $user->professionalProfile->is_verified = !$user->professionalProfile->is_verified;
         $user->professionalProfile->save();
-        
-        return response()->json([
-            'success' => true,
-            'data' => $user->fresh('professionalProfile')
-        ]);
+
+        return redirect()->back()->with('success', 'Vérification utilisateur basculée.');
     }
 
     /**
@@ -181,11 +146,7 @@ class AdminController extends Controller
      */
     public function simulations()
     {
-        $simulations = Simulation::with('user')->latest()->get();
-        return response()->json([
-            'success' => true,
-            'data' => $simulations
-        ]);
+        return redirect()->route('dashboard.admin')->with('info', 'Simulations endpoint removed.');
     }
 
     /**
@@ -193,11 +154,7 @@ class AdminController extends Controller
      */
     public function projects()
     {
-        $projects = Project::with('user.professionalProfile')->latest()->get();
-        return response()->json([
-            'success' => true,
-            'data' => $projects
-        ]);
+        return redirect()->route('dashboard.admin')->with('info', 'Projects endpoint removed.');
     }
 
     /**
@@ -208,11 +165,7 @@ class AdminController extends Controller
         $project = Project::findOrFail($id);
         $project->status = $project->status === 'online' ? 'offline' : 'online';
         $project->save();
-        
-        return response()->json([
-            'success' => true,
-            'data' => $project
-        ]);
+        return redirect()->back()->with('success', 'Project status mis à jour.');
     }
 
     /**
@@ -222,7 +175,7 @@ class AdminController extends Controller
     {
         $project = Project::findOrFail($id);
         $project->delete();
-        return response()->json(['success' => true]);
+        return redirect()->back()->with('success', 'Projet supprimé.');
     }
 
     /**
@@ -232,6 +185,6 @@ class AdminController extends Controller
     {
         $simulation = Simulation::findOrFail($id);
         $simulation->delete();
-        return response()->json(['success' => true]);
+        return redirect()->back()->with('success', 'Simulation supprimée.');
     }
 }

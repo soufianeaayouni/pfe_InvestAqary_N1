@@ -6,14 +6,31 @@ use App\Models\ProfessionalProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
+    public function showLogin()
+    {
+        return view('auth.login');
+    }
+
+    public function showRegisterClient()
+    {
+        return view('auth.signup-client');
+    }
+
+    public function showRegisterPro()
+    {
+        return view('auth.signup-pro');
+    }
+
     public function registerClient(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -21,45 +38,31 @@ class AuthController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validator->errors()->first(),
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $user = new User([
             'name' => $request->first_name.' '.$request->last_name,
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'email' => $request->email,
             'phone' => $request->phone,
-            'password' => $request->password,
+            'password' => Hash::make($request->password),
         ]);
         $user->role = 'client';
         $user->status = 'active'; // Clients are active immediately, no admin approval needed
         $user->save();
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        Auth::login($user);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Client registered successfully.',
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => $user,
-        ], 201);
+        return redirect()->to('/dashboard/client')->with('success', 'Inscription réussie.');
     }
 
     public function registerPro(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $request->validate([
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'company_name' => 'required|string|max:255',
             'category' => 'nullable|string|max:255',
-            'type' => 'nullable|string|in:entreprise,maalem',
+            'type' => 'required|string|in:entreprise,maalem',
             'phone' => 'nullable|string|max:20',
             'city' => 'nullable|string|max:100',
             'description' => 'nullable|string',
@@ -69,23 +72,15 @@ class AuthController extends Controller
             'banner_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validator->errors()->first(),
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
         $user = new User([
             'name' => $request->company_name,
             'email' => $request->email,
             'phone' => $request->phone,
             'city' => $request->city,
-            'password' => $request->password,
+            'password' => Hash::make($request->password),
         ]);
         $user->role = 'pro';
-        $user->status = 'pending'; // New pros start as pending
+        $user->status = 'pending'; // New pros await admin activation
         $user->save();
 
         $profilePhotoPath = null;
@@ -113,66 +108,50 @@ class AuthController extends Controller
             'banner_photo' => $bannerPhotoPath,
         ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        Auth::login($user);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Professional registered successfully.',
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => $user->load('professionalProfile'),
-        ], 201);
+        return redirect()->to('/dashboard/pro')->with('success', 'Inscription réussie. Votre compte est en attente d\'approbation.');
     }
 
     public function login(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $credentials = $request->validate([
             'email' => 'required|string|email',
             'password' => 'required|string',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+        if (Auth::attempt($credentials)) {
+            $request->session()->regenerate();
+            $user = Auth::user();
+
+            if ($user->status !== 'active') {
+                Auth::logout();
+                return back()->withErrors([
+                    'email' => 'Votre compte est en attente d\'approbation ou a été suspendu.',
+                ]);
+            }
+
+            if ($user->role === 'admin') {
+                return redirect()->intended('/admin');
+            } elseif ($user->role === 'pro') {
+                return redirect()->intended('/dashboard/pro');
+            } else {
+                return redirect()->intended('/dashboard/client');
+            }
         }
 
-        $user = User::where('email', $request->email)->first();
-
-        if (! $user || ! Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid login details.',
-            ], 401);
-        }
-
-        if ($user->status !== 'active') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Your account is pending approval or has been suspended.',
-            ], 403);
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Logged in successfully.',
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'user' => $user->role === 'pro' ? $user->load('professionalProfile') : $user,
-        ]);
+        return back()->withErrors([
+            'email' => 'Les identifiants fournis ne correspondent pas à nos enregistrements.',
+        ])->onlyInput('email');
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Logged out successfully',
-        ]);
+        return redirect('/');
     }
 
     public function updateProfile(Request $request)
@@ -180,28 +159,58 @@ class AuthController extends Controller
         /** @var \App\Models\User $user */
         $user = auth()->user();
         
-        $validator = Validator::make($request->all(), [
+        $rules = [
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'phone' => 'nullable|string|max:20',
             'city' => 'nullable|string|max:100',
-        ]);
+        ];
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors()
-            ], 422);
+        // Pro-specific validation
+        if ($user->role === 'pro') {
+            $rules = array_merge($rules, [
+                'company_name' => 'nullable|string|max:255',
+                'category' => 'nullable|string|max:255',
+                'type' => 'nullable|string|in:entreprise,maalem,fournisseur',
+                'description' => 'nullable|string',
+                'experience' => 'nullable|string',
+                'ice' => 'nullable|string|max:50',
+                'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
+                'banner_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
+            ]);
         }
+
+        $request->validate($rules);
 
         $user->fill($request->only(['name', 'email', 'phone', 'city']));
         $user->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Profile updated successfully',
-            'data' => $user->fresh()
-        ]);
+        // Update ProfessionalProfile if pro
+        if ($user->role === 'pro') {
+            $profile = ProfessionalProfile::firstOrCreate(['user_id' => $user->id]);
+
+            $profileData = $request->only(['company_name', 'category', 'type', 'description', 'experience', 'ice']);
+
+            if ($request->hasFile('profile_photo')) {
+                $path = $request->file('profile_photo')->store('profiles', 'public');
+                $profileData['profile_photo'] = Storage::disk('public')->url($path);
+            }
+
+            if ($request->hasFile('banner_photo')) {
+                $path = $request->file('banner_photo')->store('banners', 'public');
+                $profileData['banner_photo'] = Storage::disk('public')->url($path);
+            }
+
+            $profile->fill($profileData);
+            $profile->save();
+
+            // Keep user name in sync with company name
+            if ($request->filled('company_name')) {
+                $user->name = $request->company_name;
+                $user->save();
+            }
+        }
+
+        return back()->with('success', 'Profil mis à jour avec succès.');
     }
 }

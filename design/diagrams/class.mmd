@@ -1,0 +1,77 @@
+%% Class diagram for InvestAqary
+classDiagram
+class User {
+  +int id
+  +string name
+  +string email
+  +string role
+  +login()
+}
+
+class Project {
+  +int id
+  +string title
+  +string description
+  +float price
+  +created_at
+}
+
+class Product {
+  +int id
+  +string name
+  +float price
+}
+
+class Simulation {
+  +int id
+  +float expected_roi
+  +json parameters
+  +created_at
+}
+
+class Lead {
+  +int id
+  +string contact_info
+  +string message
+  +status
+}
+
+class Conversation {
+  +int id
+  +started_at
+}
+
+class Message {
+  +int id
+  +text body
+  +sent_at
+}
+
+class ProfessionalProfile {
+  +int id
+  +string company
+  +string bio
+}
+
+class Review {
+  +int id
+  +int rating
+  +text comment
+  +created_at
+}
+
+class ProfileViewLog {
+  +int id
+  +viewed_at
+}
+
+User "1" -- "0..*" Project : "owns"
+User "1" -- "0..*" Simulation : "runs"
+Project "1" -- "0..*" Simulation : "has"
+Project "1" -- "0..*" Lead : "receives"
+Lead "1" -- "1" Conversation : "starts"
+Conversation "1" -- "0..*" Message : "contains"
+ProfessionalProfile "1" -- "1" User : "belongs to"
+ProfessionalProfile "1" -- "0..*" Review : "has"
+ProfileViewLog "0..*" -- "1" ProfessionalProfile : "logs views"
+Product "0..*" -- "1" Project : "part of"

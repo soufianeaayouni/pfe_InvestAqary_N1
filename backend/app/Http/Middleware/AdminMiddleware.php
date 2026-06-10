@@ -17,9 +17,13 @@ class AdminMiddleware
             return $next($request);
         }
 
-        return response()->json([
-            'success' => false,
-            'message' => 'Unauthorized. Admin access required.'
-        ], 403);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Admin access required.'
+            ], 403);
+        }
+
+        return redirect('/')->with('error', 'Accès administrateur requis.');
     }
 }
